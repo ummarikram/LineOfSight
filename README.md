@@ -1,4 +1,4 @@
-# Line Of Sight
+# LINE OF SIGHT
 
 A beam visualization application made with GLFW that can be morphed into:
 
