@@ -18,4 +18,4 @@ A beam visualization application made with GLFW that can be morphed into:
 
 ## DEPENDENCIES
 
-* GLFW [https://github.com/glfw/glfw]
+[GLFW](https://github.com/glfw/glfw)
