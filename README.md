@@ -13,4 +13,9 @@ A beam visualization application made with GLFW that can be morphed into:
 
 ## INSTRUCTIONS
 
-1. Use the 'W' KEY to move Forward, 'S' to move Backward, 'A' to rotate Anti-Clockwise and 'D' to rotate Clockwise.
+1. Use the 'w' KEY to move Forward and the 's' KEY to move Backward.
+3. Use the 'a' KEY to rotate Anti-Clockwise and the 'd' to rotate Clockwise.
+
+## DEPENDENCIES
+
+* GLFW [https://github.com/glfw/glfw]
