@@ -1,9 +1,6 @@
 # LINE OF SIGHT
 
-A beam visualization application made with GLFW that can be morphed into:
-
-* Ray Casting
-* Enemy sight in strategic games
+A 2D Ray-Casting visualization made with GLFW that can be morphed into:
 
 ### SINGLE BEAM
 ![Image of Beam](https://github.com/ummarikram/LineOfSight/blob/master/Run.gif)
