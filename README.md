@@ -1,6 +1,6 @@
 # LINE OF SIGHT
 
-A 2D Ray-Casting visualization made with GLFW that can be morphed into:
+A 2D Ray-Casting visualization made with GLFW
 
 ### SINGLE BEAM
 ![Image of Beam](https://github.com/ummarikram/LineOfSight/blob/master/Run.gif)
