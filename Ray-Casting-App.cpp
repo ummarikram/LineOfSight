@@ -1,26 +1,25 @@
 #include <GLFW/glfw3.h>
 #include <time.h>
-#include <set>
+#include <vector>
 #include <string>
 
-#define Screen_Width 1280
-#define Screen_Height 720
+#define Screen_Width 600
+#define Screen_Height 600
 #define PI 3.141592653589793238
-
+#define NoOfRays 50
 
 // For FPS
 double previousTime = glfwGetTime();
 int frameCount = 0;
-
 
 // To store coordinates
 struct Point
 {
     float x, y;
 
-    Point()
+    Point(float X = 0.0f, float Y = 0.0f)
     {
-        x = 0.0f, y = 0.0f;
+        x = X, y = Y;
     }
 
     void Add(float X, float Y)
@@ -60,53 +59,40 @@ struct Quad
     }
 };
 
-// To store coordinates of Walls
-std::set<Quad> Walls;
-
 class Map
 {
-public:
+private:
 
+    // To store coordinates of Walls
+    std::vector<Quad> Walls;
     Point Position, Scale;
     const int size = 20;
-    int** Grid;
+
+public:
 
     Map()
     {
         Position.x = Screen_Width / size; Position.y = Screen_Height / size;
         Scale.x = 0; Scale.y = 0;
 
-        // Initializing Grid
-        Grid = new int* [Position.y];
+        bool IsBoundary = false;
 
-        for (unsigned int i = 0; i < Position.y; i++)
-        {
-            Grid[i] = new int[Position.x];
-
-        }
-
+        // Assigning Walls
         for (unsigned int i = 0; i < Position.y; i++)
         {
             for (unsigned int j = 0; j < Position.x; j++)
             {
-                // Assigning boundary walls
-                if (i == 0 || j == 0 || i == Position.y - 1 || j == Position.x - 1)
-                {
-                    Grid[i][j] = 1;
-
-                }
+                IsBoundary = (i == 0 || j == 0 || i == Position.y - 1 || j == Position.x - 1);
+         
                 // Random walls inside
-                else if (rand() % i == 3 && rand() % 2 == 0)
+                if (!IsBoundary && rand() % i == 3 && rand() % 2 == 0)
                 {
-                    Grid[i][j] = 1;
+                    Scale.x = j * size; Scale.y = i * size;
 
-                }
-
-                // Free area
-                else
-                {
-                    Grid[i][j] = 0;
-
+                    if (Scale.x != Screen_Width / 2 && Scale.y != Screen_Height / 2)
+                    {
+                        Walls.emplace_back(Scale.x, Scale.x + size, Scale.y, Scale.y + size);
+                    }
                 }
             }
         }
@@ -114,38 +100,15 @@ public:
 
     void DrawGrid()
     {
-        Scale.x = 0; Scale.y = 0;
-
-        for (unsigned int i = 0; i < Position.y; i++)
+        for (auto itr = Walls.begin(); itr != Walls.end(); itr++)
         {
-            for (unsigned int j = 0; j < Position.x; j++)
-            {
-                // if there is a wall draw a dark gray quad
-                if (Grid[i][j] == 1)
-                {
-                    glColor4f(0.80, 0.80, 0.80, 1);
-                    Scale.x = j * size; Scale.y = i * size;
-                    glBegin(GL_QUADS);
-                    glVertex2f(Scale.x, Scale.y);
-                    glVertex2f(Scale.x, Scale.y + size);
-                    glVertex2f(Scale.x + size, Scale.y + size);
-                    glVertex2f(Scale.x + size, Scale.y);
-                    glEnd();
-
-                    // If this is not a boundary wall position
-                    if (!(i == 0 || j == 0 || i == Position.y - 1 || j == Position.x - 1))
-                    {
-                        // Add this quad to the set of walls
-                        Quad Q(Scale.x, Scale.x + size, Scale.y, Scale.y + size);
-
-                        Walls.insert(Q);
-
-                    }
-
-                }
-
-            }
-
+            glColor4f(0.80, 0.80, 0.80, 1);
+            glBegin(GL_QUADS);
+            glVertex2f(itr->X, itr->Y);
+            glVertex2f(itr->X, itr->Y1);
+            glVertex2f(itr->X1, itr->Y1);
+            glVertex2f(itr->X1, itr->Y);
+            glEnd();
         }
     }
 
@@ -177,15 +140,15 @@ private:
 
     Point Position;  // Source position
     Point Direction; // Source direction w.r.t Ray
-    Point Directions[50];  // Directions for Rays
+    Point Directions[NoOfRays];  // Directions for Rays
     Point Ray;  // Alpha Direction Ray
-    Point Rays[50]; // Rays with w.r.t Alpha Ray
+    Point Rays[NoOfRays]; // Rays with w.r.t Alpha Ray
     float Angle;
     const float AngleFactor = 0.008; // Increase it for faster rotation.
     float MoveFactor;  // For collision detection
-    const int BorderLimit = 25; // To remain in bounds
+    const int BorderLimit = 5; // To remain in bounds
     float Magnify;  // Helps in calculating ray length
-    const float Precision = 0.75; // Decrease it for more accuracy with walls
+    const float Precision = 0.05; // Decrease it for more accuracy with walls
                                   // Decreasing will lower FPS.
     const int Speed = 15; // Speed at which Source moves
                           // Decrease it to move source faster.
@@ -194,7 +157,7 @@ public:
 
     Entity()
     {
-        Position.x = 300; Position.y = 300; MoveFactor = 0.5; Angle = 0.0f;
+        Position.x = Screen_Width / 2; Position.y = Screen_Height / 2; MoveFactor = 0.5; Angle = 0.0f;
         
         Magnify = 1.5;
 
@@ -204,7 +167,7 @@ public:
         Ray.x = Position.x + Direction.x * Magnify;
         Ray.y = Position.y + Direction.y * Magnify;
 
-        for (int i = 0; i < 50; i++)
+        for (int i = 0; i < NoOfRays; i++)
         {
             Directions[i].x = cos(Angle) * Magnify;
             Directions[i].y = sin(Angle) * Magnify;
@@ -215,44 +178,42 @@ public:
     }
 
     
-    float GetPositionX()
+    float GetPositionX() const
     {
         return Position.x;
     }
 
-    float GetPositionY()
+    float GetPositionY() const
     {
         return Position.y;
     }
 
-    float GetMoveFactor()
+    float GetMoveFactor() const
     {
         return MoveFactor;
     }
 
-    int GetBorderLimit()
+    int GetBorderLimit() const
     {
         return BorderLimit;
     }
 
     // Draw Player
-    void Draw()
+    void Draw() const
     {
-
         glPointSize(15);
         glBegin(GL_POINTS);
         glColor4f(1, 1, 1, 1);
         glVertex2f(this->GetPositionX(), this->GetPositionY());
         glEnd();
-
     }
 
-    void DrawRay(Map World)
+    void DrawRay(Map& World)
     {
         bool Continue = true;
 
         // Calculating lenght of all rays.
-        for (int i = 0; i < 50; i++)
+        for (int i = 0; i < NoOfRays; i++)
         {
             Continue = true;
             
@@ -450,6 +411,7 @@ int main(int argc, char** argv)
     if (!glfwInit())
         return -1;
 
+    glfwWindowHint(GLFW_RESIZABLE, GL_FALSE);
 
     /* Create a windowed mode window and its OpenGL context */
     window = glfwCreateWindow(Screen_Width, Screen_Height, "Ray-Casting", NULL, NULL);
@@ -462,9 +424,11 @@ int main(int argc, char** argv)
 
     /* Make the window's context current */
     glfwMakeContextCurrent(window);
-
+   
     // Start window at center
-    glfwSetWindowPos(window, Screen_Width / 20, Screen_Height / 20);
+    glfwSetWindowPos(window,
+        abs(glfwGetVideoMode(glfwGetPrimaryMonitor())->width - Screen_Width) / 2,
+        abs(glfwGetVideoMode(glfwGetPrimaryMonitor())->height - Screen_Height) / 2);
 
     // Player and Map Object
     Entity Player; Map World;
@@ -477,7 +441,7 @@ int main(int argc, char** argv)
 
         // To draw
         glLoadIdentity();
-        glOrtho(0, 1280, 720, 0, 100, -100);
+        glOrtho(0, Screen_Width, Screen_Height, 0, 100, -100);
 
         // Calculate & Show FPS
         {
