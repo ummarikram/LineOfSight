@@ -2,9 +2,6 @@
 
 A 2D Ray-Casting visualization made with GLFW
 
-### SINGLE BEAM
-![Image of Beam](https://github.com/ummarikram/LineOfSight/blob/master/Run.gif)
-
 ### RAY-CASTING
 ![Image of Rays](https://github.com/ummarikram/LineOfSight/blob/master/Ray%20Casting%20Run.gif)
 
