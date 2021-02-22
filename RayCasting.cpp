@@ -3,14 +3,15 @@
 #include <vector>
 #include <string>
 
-#define Screen_Width 600
-#define Screen_Height 600
+int Get_Width() { return glfwGetVideoMode(glfwGetPrimaryMonitor())->width; }
+int Get_Height() { return glfwGetVideoMode(glfwGetPrimaryMonitor())->height; }
+
+#define Screen_Width Get_Width()
+#define Screen_Height Get_Height()
 #define PI 3.141592653589793238
 #define NoOfRays 50
 
-// For FPS
-double previousTime = glfwGetTime();
-int frameCount = 0;
+bool QuitApp = false;
 
 // To store coordinates
 struct Point
@@ -65,25 +66,25 @@ private:
 
     // To store coordinates of Walls
     std::vector<Quad> Walls;
-    Point Position, Scale;
+    Point SourcePosition, Scale;
     const int size = 20;
 
 public:
 
     Map()
     {
-        Position.x = Screen_Width / size; Position.y = Screen_Height / size;
+        SourcePosition.x = Screen_Width / size; SourcePosition.y = Screen_Height / size;
         Scale.x = 0; Scale.y = 0;
 
         bool IsBoundary = false;
-        Walls.reserve(int(Position.x));
-
+        Walls.reserve(int(SourcePosition.x));
+      
         // Assigning Walls
-        for (unsigned int i = 0; i < Position.y; i++)
+        for (unsigned int i = 0; i < SourcePosition.y; i++)
         {
-            for (unsigned int j = 0; j < Position.x; j++)
+            for (unsigned int j = 0; j < SourcePosition.x; j++)
             {
-                IsBoundary = (i == 0 || j == 0 || i == Position.y - 1 || j == Position.x - 1);
+                IsBoundary = (i == 0 || j == 0 || i == SourcePosition.y - 1 || j == SourcePosition.x - 1);
          
                 // Random walls inside
                 if (!IsBoundary && rand() % i == 3 && rand() % 2 == 0)
@@ -114,15 +115,16 @@ public:
     }
 
     // Function to check if ray collides with wall
-    bool CheckCollision(float Px, float Py, float MoveFactor, int Precision)
+    bool CheckCollision(float Px, float Py, float MoveFactor, int Precision) const
     {
         float Round = MoveFactor * Precision;
+        float X1 = Px + Round, X = Px - Round, Y1 = Py + Round, Y = Py - Round;
 
         for (auto itr = Walls.begin(); itr != Walls.end(); itr++)
         {
             // if collides
-            if (Px + Round >= itr->X && Px - Round <= itr->X1
-                && Py + Round >= itr->Y && Py - Round <= itr->Y1)
+            if (X1 >= itr->X && X <= itr->X1
+                && Y1 >= itr->Y && Y <= itr->Y1)
             {
                 return false;
             }
@@ -133,59 +135,93 @@ public:
     }
 };
 
-class Entity
+class RayCasting
 {
-
 private:
 
-    Point Position;  // Source position
-    Point Direction; // Source direction w.r.t Ray
+    Point SourcePosition;  // Source position
+    Point AlphaRayDirection; // The direction in which the source moves
     Point Directions[NoOfRays];  // Directions for Rays
-    Point Ray;  // Alpha Direction Ray
+    Point AlphaRay;  // Alpha Direction Ray
     Point Rays[NoOfRays]; // Rays with w.r.t Alpha Ray
+    Point Borders;
     float Angle;
-    const float AngleFactor = 0.008; // Increase it for faster rotation.
-    float MoveFactor;  // For collision detection
+    const float AngleFactor = 0.01; // Increase it for faster rotation.
+    const float MoveFactor = 0.75;  // For collision detection
     const int BorderLimit = 5; // To remain in bounds
-    float Magnify;  // Helps in calculating ray length
-    const float Precision = 0.05; // Decrease it for more accuracy with walls
-                                  // Decreasing will lower FPS.
-    const int Speed = 15; // Speed at which Source moves
-                          // Decrease it to move source faster.
+    const float Magnify = 1.5;  // Helps in calculating ray length
+    const float Precision = 0.5; // Decrease it for more accuracy with walls, Decreasing will lower FPS.                   
+    const int Speed = 20; // Speed at which Source moves, Decrease it to move source faster.
 
 public:
 
-    Entity()
+    RayCasting()
     {
-        Position.x = Screen_Width / 2; Position.y = Screen_Height / 2; MoveFactor = 0.5; Angle = 0.0f;
-        
-        Magnify = 1.5;
+        Borders.Add(Screen_Width - BorderLimit, Screen_Height - BorderLimit);
 
-        Direction.x = cos(Angle) * Magnify;
-        Direction.y = sin(Angle) * Magnify;
+        SourcePosition.x = Screen_Width / 2; SourcePosition.y = Screen_Height / 2;
+        Angle = 0.0f; 
 
-        Ray.x = Position.x + Direction.x * Magnify;
-        Ray.y = Position.y + Direction.y * Magnify;
+        AlphaRayDirection.x = cos(Angle) * Magnify;
+        AlphaRayDirection.y = sin(Angle) * Magnify;
 
-        for (int i = 0; i < NoOfRays; i++)
+        AlphaRay.x = SourcePosition.x + AlphaRayDirection.x * Magnify;
+        AlphaRay.y = SourcePosition.y + AlphaRayDirection.y * Magnify;
+
+        int Ray = 0; float TempAngle = Angle;
+
+        // 1st Quadrant rays w.r.t Alpha Ray
+        for (; Ray < NoOfRays/2; Ray++)
         {
-            Directions[i].x = cos(Angle) * Magnify;
-            Directions[i].y = sin(Angle) * Magnify;
-            Rays[i].x = Position.x + Directions[i].x * Magnify;
-            Rays[i].y = Position.y + Directions[i].y * Magnify;
+            TempAngle -= AngleFactor;
+
+            if (TempAngle < 0)
+            {
+                TempAngle += 2 * PI;
+            }
+
+            Directions[Ray].x = cos(TempAngle) * 5;
+            Directions[Ray].y = sin(TempAngle) * 5;
+          
+            Rays[Ray].x = SourcePosition.x + Directions[Ray].x * Magnify;
+            Rays[Ray].y = SourcePosition.y + Directions[Ray].y * Magnify;
+        }
+
+        // Alpha Ray which is in the middle
+        Directions[NoOfRays / 2].x = AlphaRayDirection.x;
+        Directions[NoOfRays / 2].y = AlphaRayDirection.y;
+
+        Rays[NoOfRays / 2].x = SourcePosition.x + Directions[NoOfRays / 2].x * Magnify;
+        Rays[NoOfRays / 2].y = SourcePosition.y + Directions[NoOfRays / 2].y * Magnify;
+
+        TempAngle = Angle; Ray++;
+
+        // 4th Quadrant Rays w.r.t to Alpha Ray
+        for (; Ray < NoOfRays; Ray++)
+        {
+            TempAngle += AngleFactor;
+
+            if (TempAngle > 2 * PI)
+            {
+                TempAngle -= 2 * PI;
+            }
+
+            Directions[Ray].x = cos(TempAngle) * 5;
+            Directions[Ray].y = sin(TempAngle) * 5;
+            Rays[Ray].x = SourcePosition.x + Directions[Ray].x * Magnify;
+            Rays[Ray].y = SourcePosition.y + Directions[Ray].y * Magnify;
         }
    
     }
 
-    
     float GetPositionX() const
     {
-        return Position.x;
+        return SourcePosition.x;
     }
 
     float GetPositionY() const
     {
-        return Position.y;
+        return SourcePosition.y;
     }
 
     float GetMoveFactor() const
@@ -193,68 +229,67 @@ public:
         return MoveFactor;
     }
 
-    int GetBorderLimit() const
-    {
-        return BorderLimit;
-    }
-
-    // Draw Player
-    void Draw() const
+    void DrawSource() const
     {
         glPointSize(15);
         glBegin(GL_POINTS);
         glColor4f(1, 1, 1, 1);
-        glVertex2f(this->GetPositionX(), this->GetPositionY());
+        glVertex2f(SourcePosition.x, SourcePosition.y);
         glEnd();
     }
 
-    void DrawRay(Map& World)
+    void DrawRays(const Map& World)
     {
         bool Continue = true;
-
-        // Calculating lenght of all rays.
+        float LocalMagnify = Magnify;
+  
+        // Calculating length of all rays.
         for (int i = 0; i < NoOfRays; i++)
         {
             Continue = true;
-            
-            Magnify = 1.5;
+            LocalMagnify = Magnify;
 
+            // needs optimization
             while (Continue)
             {
-                // if ray collides with wall or boundary
-                if (!World.CheckCollision(Rays[i].x, Rays[i].y, this->GetMoveFactor(), 2)
-                    || Rays[i].x > Screen_Width - BorderLimit || Rays[i].x < BorderLimit
-                    || Rays[i].y < BorderLimit || Rays[i].y > Screen_Height - BorderLimit)
+                // if going out of bounds
+                if (Rays[i].x > Borders.x || Rays[i].x < BorderLimit
+                    || Rays[i].y < BorderLimit || Rays[i].y > Borders.y)
                 {
                     // break loop
                     Continue = false;
 
                     // Decrease ray length
-                    if (Magnify > 0)
-                    {
-                        Magnify -= Precision;
-                    }
+                    LocalMagnify -= (Precision * (LocalMagnify > 0));
+                }
 
+                // if colliding with a wall
+                else if (!World.CheckCollision(Rays[i].x, Rays[i].y, MoveFactor, 2))
+                {
+                    // break loop
+                    Continue = false;
+
+                    // Decrease ray length
+                    LocalMagnify -= (Precision * (LocalMagnify > 0));
                 }
 
                 // else increase ray length
                 else
                 {
-
-                    Magnify += Precision;
+                    LocalMagnify += Precision;
                 }
 
                 // Update Ray Position
-                Rays[i].x = Position.x + Directions[i].x * Magnify;
-                Rays[i].y = Position.y + Directions[i].y * Magnify;
+                Rays[i].x = SourcePosition.x + Directions[i].x * LocalMagnify;
+                Rays[i].y = SourcePosition.y + Directions[i].y * LocalMagnify;
             }
 
 
             // Draw Ray
             glColor4f(0.95, 0.95, 0.4, 1);
-            glLineWidth(0.5);
+            glLineWidth(1);
             glBegin(GL_LINES);
-            glVertex2f(Position.x, Position.y);
+            glVertex2f(SourcePosition.x, SourcePosition.y);
             glVertex2f(Rays[i].x, Rays[i].y);
             glEnd();
         }
@@ -267,8 +302,8 @@ public:
         // if 'S' Pressed
         if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
         {
-            float CheckY = Position.y - Direction.y / Speed,
-                CheckX = Position.x - Direction.x / Speed;
+            float CheckY = SourcePosition.y - AlphaRayDirection.y / Speed,
+                CheckX = SourcePosition.x - AlphaRayDirection.x / Speed;
 
             // if within border limit
             if (CheckY > BorderLimit && CheckY < Screen_Height - BorderLimit
@@ -277,15 +312,15 @@ public:
                 // if not colliding with a wall then allow move
                 if (AllowMove)
                 {
-                    Position.y -= Direction.y / Speed;
-                    Position.x -= Direction.x / Speed;
+                    SourcePosition.y -= AlphaRayDirection.y / Speed;
+                    SourcePosition.x -= AlphaRayDirection.x / Speed;
 
                 }
                 // if colliding with a wall then don't allow to pass
                 else
                 {
-                    Position.y += Direction.y;
-                    Position.x += Direction.x;
+                    SourcePosition.y += AlphaRayDirection.y;
+                    SourcePosition.x += AlphaRayDirection.x;
 
                 }
 
@@ -296,8 +331,8 @@ public:
         // if 'W' Pressed
         if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
         {
-            float CheckY = Position.y + Direction.y / Speed,
-                CheckX = Position.x + Direction.x / Speed;
+            float CheckY = SourcePosition.y + AlphaRayDirection.y / Speed,
+                CheckX = SourcePosition.x + AlphaRayDirection.x / Speed;
 
             // if within border limit
             if (CheckY > BorderLimit && CheckY < Screen_Height - BorderLimit
@@ -306,15 +341,15 @@ public:
                 // if not colliding with a wall then allow move
                 if (AllowMove)
                 {
-                    Position.y += Direction.y / Speed;
-                    Position.x += Direction.x / Speed;
+                    SourcePosition.y += AlphaRayDirection.y / Speed;
+                    SourcePosition.x += AlphaRayDirection.x / Speed;
 
                 }
                 // if colliding with a wall then don't allow to pass
                 else
                 {
-                    Position.y -= Direction.y;
-                    Position.x -= Direction.x;
+                    SourcePosition.y -= AlphaRayDirection.y;
+                    SourcePosition.x -= AlphaRayDirection.x;
 
                 }
             }
@@ -335,13 +370,39 @@ public:
             }
 
             // Update Direction for Alpha Ray
-            Direction.x = cos(Angle) * 5;
-            Direction.y = sin(Angle) * 5;
+            AlphaRayDirection.x = cos(Angle) * 5;
+            AlphaRayDirection.y = sin(Angle) * 5;
 
-            // For Other Rays
-            float TempAngle = Angle;
+            int Ray = 0; float TempAngle = Angle;
 
-            for (int i = 0; i < 50; i++)
+            // 1st Quadrant rays w.r.t Alpha Ray
+            for (; Ray < NoOfRays / 2; Ray++)
+            {
+                TempAngle -= AngleFactor;
+
+                if (TempAngle < 0)
+                {
+                    TempAngle += 2 * PI;
+                }
+
+                Directions[Ray].x = cos(TempAngle) * 5;
+                Directions[Ray].y = sin(TempAngle) * 5;
+
+                Rays[Ray].x = SourcePosition.x + Directions[Ray].x * Magnify;
+                Rays[Ray].y = SourcePosition.y + Directions[Ray].y * Magnify;
+            }
+
+            // Alpha Ray which is in the middle
+            Directions[NoOfRays / 2].x = AlphaRayDirection.x;
+            Directions[NoOfRays / 2].y = AlphaRayDirection.y;
+
+            Rays[NoOfRays / 2].x = SourcePosition.x + Directions[NoOfRays / 2].x * Magnify;
+            Rays[NoOfRays / 2].y = SourcePosition.y + Directions[NoOfRays / 2].y * Magnify;
+
+            TempAngle = Angle; Ray++;
+
+            // 4th Quadrant Rays w.r.t to Alpha Ray
+            for (; Ray < NoOfRays; Ray++)
             {
                 TempAngle += AngleFactor;
 
@@ -350,13 +411,11 @@ public:
                     TempAngle -= 2 * PI;
                 }
 
-                Directions[i].x = cos(TempAngle) * 5;
-                Directions[i].y = sin(TempAngle) * 5;
+                Directions[Ray].x = cos(TempAngle) * 5;
+                Directions[Ray].y = sin(TempAngle) * 5;
+                Rays[Ray].x = SourcePosition.x + Directions[Ray].x * Magnify;
+                Rays[Ray].y = SourcePosition.y + Directions[Ray].y * Magnify;
             }
-
-            // Reset Magnify
-            Magnify = 1.5;
-
         }
 
         // if 'A' Pressed
@@ -373,13 +432,13 @@ public:
             }
 
             // Update Direction for Alpha Ray
-            Direction.x = cos(Angle) * 5;
-            Direction.y = sin(Angle) * 5;
+            AlphaRayDirection.x = cos(Angle) * 5;
+            AlphaRayDirection.y = sin(Angle) * 5;
 
-            // For other Rays
-            float TempAngle = Angle;
+            int Ray = 0; float TempAngle = Angle;
 
-            for (int i = 0; i < 50; i++)
+            // 1st Quadrant rays w.r.t Alpha Ray
+            for (; Ray < NoOfRays / 2; Ray++)
             {
                 TempAngle -= AngleFactor;
 
@@ -388,13 +447,43 @@ public:
                     TempAngle += 2 * PI;
                 }
 
-                Directions[i].x = cos(TempAngle) * 5;
-                Directions[i].y = sin(TempAngle) * 5;
+                Directions[Ray].x = cos(TempAngle) * 5;
+                Directions[Ray].y = sin(TempAngle) * 5;
+
+                Rays[Ray].x = SourcePosition.x + Directions[Ray].x * Magnify;
+                Rays[Ray].y = SourcePosition.y + Directions[Ray].y * Magnify;
             }
 
-            // Reset Magnify
-            Magnify = 1.5;
+            // Alpha Ray which is in the middle
+            Directions[NoOfRays / 2].x = AlphaRayDirection.x;
+            Directions[NoOfRays / 2].y = AlphaRayDirection.y;
 
+            Rays[NoOfRays / 2].x = SourcePosition.x + Directions[NoOfRays / 2].x * Magnify;
+            Rays[NoOfRays / 2].y = SourcePosition.y + Directions[NoOfRays / 2].y * Magnify;
+
+            TempAngle = Angle; Ray++;
+
+            // 4th Quadrant Rays w.r.t to Alpha Ray
+            for (; Ray < NoOfRays; Ray++)
+            {
+                TempAngle += AngleFactor;
+
+                if (TempAngle > 2 * PI)
+                {
+                    TempAngle -= 2 * PI;
+                }
+
+                Directions[Ray].x = cos(TempAngle) * 5;
+                Directions[Ray].y = sin(TempAngle) * 5;
+                Rays[Ray].x = SourcePosition.x + Directions[Ray].x * Magnify;
+                Rays[Ray].y = SourcePosition.y + Directions[Ray].y * Magnify;
+            }
+        }
+
+
+        if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+        {
+            QuitApp = true;
         }
     }
 
@@ -411,10 +500,8 @@ int main(int argc, char** argv)
     if (!glfwInit())
         return -1;
 
-    glfwWindowHint(GLFW_RESIZABLE, GL_FALSE);
-
     /* Create a windowed mode window and its OpenGL context */
-    window = glfwCreateWindow(Screen_Width, Screen_Height, "Ray-Casting", NULL, NULL);
+    window = glfwCreateWindow(Screen_Width, Screen_Height, "Ray-Casting", glfwGetPrimaryMonitor(), NULL);
 
     if (!window)
     {
@@ -425,16 +512,12 @@ int main(int argc, char** argv)
     /* Make the window's context current */
     glfwMakeContextCurrent(window);
    
-    // Start window at center
-    glfwSetWindowPos(window,
-        abs(glfwGetVideoMode(glfwGetPrimaryMonitor())->width - Screen_Width) / 2,
-        abs(glfwGetVideoMode(glfwGetPrimaryMonitor())->height - Screen_Height) / 2);
-
+   
     // Player and Map Object
-    Entity Player; Map World;
+    RayCasting RayCaster; Map World;
 
     /* Loop until the user closes the window */
-    while (!glfwWindowShouldClose(window))
+    while (!glfwWindowShouldClose(window) && !QuitApp)
     {
         /* Render here */
         glClear(GL_COLOR_BUFFER_BIT);
@@ -443,38 +526,20 @@ int main(int argc, char** argv)
         glLoadIdentity();
         glOrtho(0, Screen_Width, Screen_Height, 0, 100, -100);
 
-        // Calculate & Show FPS
-        {
-            double currentTime = glfwGetTime();
-            frameCount++;
-
-            // If a second has passed.
-            if (currentTime - previousTime >= 1.0)
-            {
-                std::string Title = "Ray-Casting | FPS : ";
-                Title += std::to_string(frameCount);
-
-                glfwSetWindowTitle(window, Title.c_str());
-
-                frameCount = 0;
-                previousTime = currentTime;
-            }
-        }
-
         // Draw Source
-        Player.Draw();
+        RayCaster.DrawSource();
 
         // Draw World
         World.DrawGrid();
 
         // returns true if no collision
-        bool AllowMove = World.CheckCollision(Player.GetPositionX(), Player.GetPositionY(), Player.GetMoveFactor(), 15);
+        bool AllowMove = World.CheckCollision(RayCaster.GetPositionX(), RayCaster.GetPositionY(), RayCaster.GetMoveFactor(), 15);
 
         // Source Movement
-        Player.Input(window, AllowMove);
+        RayCaster.Input(window, AllowMove);
 
         // Draw Rays
-        Player.DrawRay(World);
+        RayCaster.DrawRays(World);
 
         /* Swap front and back buffers */
         glfwSwapBuffers(window);
